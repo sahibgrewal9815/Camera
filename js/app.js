@@ -69,16 +69,21 @@ function layout() {
   const W = innerWidth, H = innerHeight;
   const aspect = isVideoMode() ? 9 / 16 : { '4:3': 3 / 4, '1:1': 1, '16:9': 9 / 16 }[S.aspect];
   let h = W / aspect;
-  const barBottom = $('#topbar').getBoundingClientRect().bottom;
-  const photoTop = barBottom + 8, area = (W * 4) / 3;
-  let top;
-  if (!isVideoMode() && h <= area + 1) top = photoTop + (area - h) / 2;
-  else top = (H - h) / 2;
+  let top = isVideoMode() ? (H - h) / 2 : Math.max(0, H * 0.43 - h / 2);
   if (h > H) { h = H; top = 0; }
   const vf = $('#viewfinder');
   vf.style.top = `${Math.round(top)}px`;
   vf.style.height = `${Math.round(h)}px`;
   R.outAspect = W / h;
+  document.body.classList.toggle('video-mode', isVideoMode());
+}
+
+/** Short blur-and-settle animation when the mode, lens or camera changes (like the system camera). */
+function switchAnimation(ms = 380) {
+  const vf = $('#viewfinder');
+  vf.classList.add('switching');
+  clearTimeout(R.switchTimer);
+  R.switchTimer = setTimeout(() => vf.classList.remove('switching'), ms);
 }
 
 function previewSize() {
@@ -87,7 +92,7 @@ function previewSize() {
     return [w, Math.round(w / R.outAspect)];
   }
   const r = canvas.getBoundingClientRect();
-  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const dpr = Math.min(devicePixelRatio || 1, 1.5);
   return [Math.max(2, Math.round(r.width * dpr)), Math.max(2, Math.round(r.height * dpr))];
 }
 
@@ -289,6 +294,7 @@ function buildZoom() {
       R.zoom = o.zoom;
       if (lensChanged && o.lens !== 'front') {
         R.lens = o.lens;
+        switchAnimation(450);
         await startCamera().catch((e) => toast(`Could not switch lens (${e.name})`));
       }
       buildZoom();
@@ -322,8 +328,15 @@ $('#viewfinder').addEventListener('pointerup', (e) => {
   if (!swipe || pinch) return;
   const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
   swipe = null;
-  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) setMode(dx < 0 ? 'video' : 'photo');
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    const order = ['video', 'photo', 'depth'];
+    const i = order.indexOf(R.mode) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < order.length) setMode(order[i]);
+  }
 });
+
+$('#modes').addEventListener('pointerdown', (e) => { swipe = { x: e.clientX, y: e.clientY }; });
+$('#modes').addEventListener('pointerup', (e) => $('#viewfinder').dispatchEvent(new PointerEvent('pointerup', e)));
 
 // ---------- Modes ----------
 async function setMode(mode) {
@@ -339,6 +352,7 @@ async function setMode(mode) {
       updateBadge();
     });
   }
+  switchAnimation(wasVideo !== isVideoMode() ? 650 : 380);
   layout();
   renderUI();
   if (wasVideo !== isVideoMode()) {
@@ -362,19 +376,24 @@ const ICON = (id) => `<svg><use href="#${id}"/></svg>`;
 
 function renderUI() {
   const video = isVideoMode();
+  document.body.classList.toggle('recording', R.recording);
+  document.body.classList.toggle('video-mode', video);
+
   // Top bar
   $('#btn-flash').innerHTML = ICON(R.flash ? 'i-bolt' : 'i-bolt-off');
   $('#btn-flash').classList.toggle('active-y', R.flash);
-  $('#btn-settings').classList.toggle('hidden', R.recording);
+  $('#btn-looks').classList.toggle('active-y', R.showLooks || !isNeutral(recipe));
+  $('#btn-drawer').classList.toggle('open', R.drawerOpen);
+  $('#btn-drawer').classList.toggle('hidden', R.recording);
+  $('#btn-looks').style.visibility = R.recording ? 'hidden' : 'visible';
   $('#rec-time').classList.toggle('hidden', !R.recording);
+  $('#video').classList.toggle('mirror', camera.isFront && S.mirror);
 
   // Shutter
   const sh = $('#shutter');
   sh.classList.toggle('video', video);
   sh.classList.toggle('recording', R.recording);
   sh.classList.toggle('counting', !!R.countdownTimer);
-  $('#thumb').style.visibility = R.recording ? 'hidden' : 'visible';
-  $('#btn-flip').style.visibility = R.recording ? 'hidden' : 'visible';
 
   // Overlays
   $('#grid').classList.toggle('hidden', !S.grid);
@@ -391,45 +410,63 @@ function renderUI() {
   $('#intensity').value = S.intensity;
   $('#intensity-value').textContent = Math.round(S.intensity * 100);
 
-  // Tray
-  const tray = $('#tray');
-  tray.classList.toggle('collapsed', R.trayCollapsed);
-  tray.classList.toggle('recording', R.recording);
-  for (const b of document.querySelectorAll('#tray-modes [data-main]')) {
-    b.classList.toggle('active', (b.dataset.main === 'video') === video);
-  }
-  const items = video
-    ? [
-      { label: 'LOOKS', icon: 'i-film', active: R.showLooks || !isNeutral(recipe), act: toggleLooks },
-      { label: 'PRO', icon: 'i-sliders', active: R.showPro, act: togglePro },
-      { label: { off: 'STABLE', standard: 'STABLE', strong: 'STABLE+' }[S.stab], icon: 'i-stab', active: S.stab !== 'off', act: cycleStabilization },
-      { label: S.mic ? 'SOUND' : 'MUTED', icon: 'i-mic', active: S.mic, act: () => { S.mic = !S.mic; persist(); renderUI(); } },
-    ]
-    : [
-      { label: 'DEPTH', icon: 'i-depth', active: R.mode === 'depth', act: () => setMode(R.mode === 'depth' ? 'photo' : 'depth') },
-      { label: 'LOOKS', icon: 'i-film', active: R.showLooks || !isNeutral(recipe), act: toggleLooks },
-      { label: 'PRO', icon: 'i-sliders', active: R.showPro, act: togglePro },
-      { label: R.timer ? `${R.timer}S` : 'TIMER', icon: 'i-timer', active: R.timer > 0, act: () => { R.timer = R.timer === 0 ? 3 : R.timer === 3 ? 10 : 0; renderUI(); } },
-    ];
-  const box = $('#tray-items');
-  box.innerHTML = '';
+  // Mode carousel: slide so the active mode sits in the middle
+  for (const b of document.querySelectorAll('#mode-track button')) b.classList.toggle('active', b.dataset.mode === R.mode);
+  centerModes();
+
+  // Drawer of extra controls (opened with the chevron)
+  const drawer = $('#drawer');
+  drawer.classList.toggle('open', R.drawerOpen && !R.recording);
+  const items = [
+    { label: 'LOOKS', icon: 'i-film', active: R.showLooks || !isNeutral(recipe), act: toggleLooks },
+    { label: 'PRO', icon: 'i-sliders', active: R.showPro, act: togglePro },
+    ...(video
+      ? [
+        { label: S.stab === 'strong' ? 'STABLE+' : 'STABLE', icon: 'i-stab', active: S.stab !== 'off', act: cycleStabilization },
+        { label: S.mic ? 'SOUND' : 'MUTED', icon: 'i-mic', active: S.mic, act: () => { S.mic = !S.mic; persist(); renderUI(); } },
+      ]
+      : [
+        { label: R.timer ? `${R.timer}S` : 'TIMER', icon: 'i-timer', active: R.timer > 0, act: () => { R.timer = R.timer === 0 ? 3 : R.timer === 3 ? 10 : 0; renderUI(); } },
+        { label: S.aspect, icon: 'i-aspect', active: S.aspect !== '4:3', act: cycleAspect },
+      ]),
+    { label: 'GRID', icon: 'i-grid', active: S.grid, act: () => { S.grid = !S.grid; persist(); renderUI(); } },
+    { label: 'SETTINGS', icon: 'i-gear', active: false, act: () => { R.drawerOpen = false; renderUI(); renderSettings(); openSheet('#sheet-settings'); } },
+  ];
+  drawer.innerHTML = '';
   for (const it of items) {
     const b = document.createElement('button');
-    b.className = `tray-item${it.active ? ' active' : ''}`;
+    b.className = `d-item${it.active ? ' active' : ''}`;
     b.innerHTML = `<i>${ICON(it.icon)}</i><span>${it.label}</span>`;
     b.onclick = it.act;
-    box.appendChild(b);
+    drawer.appendChild(b);
   }
   if (R.showPro) renderPro();
 }
 
+function centerModes() {
+  const track = $('#mode-track');
+  const active = track.querySelector('.active');
+  if (!active) return;
+  const x = innerWidth / 2 - (active.offsetLeft + active.offsetWidth / 2);
+  track.style.transform = `translateX(${x}px)`;
+}
+
+function cycleAspect() {
+  S.aspect = { '4:3': '1:1', '1:1': '16:9', '16:9': '4:3' }[S.aspect];
+  persist();
+  layout();
+  renderUI();
+}
+
 function toggleLooks() {
+  R.drawerOpen = false;
   R.showLooks = !R.showLooks;
   if (R.showLooks) { R.showPro = false; buildLooksStrip(); R.lastThumbs = 0; }
   renderUI();
 }
 
 function togglePro() {
+  R.drawerOpen = false;
   R.showPro = !R.showPro;
   if (R.showPro) R.showLooks = false;
   renderUI();
@@ -698,6 +735,10 @@ function setThumb(blob) {
   const url = URL.createObjectURL(blob);
   img.dataset.url = url;
   img.src = url;
+  const t = $('#thumb');
+  t.classList.remove('pop');
+  void t.offsetWidth;
+  t.classList.add('pop');
 }
 
 async function refreshThumb() {
@@ -963,7 +1004,6 @@ bind('#set-stab', 'stab', (t) => t.value, () => { if (S.stab !== 'off' && !motio
 bind('#set-mic', 'mic', (t) => t.checked);
 bind('#set-histogram', 'histogram', (t) => t.checked);
 
-$('#btn-settings').onclick = () => { renderSettings(); openSheet('#sheet-settings'); };
 
 // ---------- Top bar & tray buttons ----------
 $('#btn-flash').onclick = () => {
@@ -983,12 +1023,19 @@ $('#btn-flip').onclick = async () => {
   if (R.recording) return;
   R.facing = R.facing === 'environment' ? 'user' : 'environment';
   R.zoom = 1;
+  switchAnimation(600);
+  const icon = $('#btn-flip svg');
+  R.flipTurns = (R.flipTurns || 0) + 1;
+  icon.style.transform = `rotate(${R.flipTurns * 180}deg)`;
   await startCamera().catch((e) => toast(`Could not switch camera (${e.name})`));
 };
-document.querySelectorAll('#tray-modes [data-main]').forEach((b) => {
-  b.onclick = () => setMode(b.dataset.main);
+document.querySelectorAll('#mode-track button').forEach((b) => {
+  b.onclick = () => setMode(b.dataset.mode);
 });
-$('#tray-toggle').onclick = () => { R.trayCollapsed = !R.trayCollapsed; renderUI(); };
+$('#btn-drawer').onclick = () => { R.drawerOpen = !R.drawerOpen; renderUI(); };
+$('#btn-looks').onclick = toggleLooks;
+// Tapping the viewfinder closes the drawer
+$('#viewfinder').addEventListener('click', () => { if (R.drawerOpen) { R.drawerOpen = false; renderUI(); } });
 
 // ---------- Toast ----------
 let toastTimer;
@@ -1026,7 +1073,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 addEventListener('pageshow', () => { if (R.started) healCamera(); });
-addEventListener('resize', () => { layout(); });
+addEventListener('resize', () => { layout(); centerModes(); });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 

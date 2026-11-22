@@ -31,75 +31,81 @@
       <symbol id="i-stab" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/></symbol>
       <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11H5.5v9.5h13V11H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17" stroke="currentColor" stroke-width="1.3"/></symbol>
+      <symbol id="i-aspect" viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
       <symbol id="i-card" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
     </defs>
   </svg>
 
   <main id="app">
+    <!-- Live camera, blurred, fills the whole screen behind the sharp viewfinder -->
+    <video id="video" playsinline muted autoplay></video>
+    <div id="shade"></div>
+
     <div id="viewfinder">
-      <!-- The real video sits under the canvas: iOS keeps feeding frames to a visible video. -->
-      <video id="video" playsinline muted autoplay></video>
       <canvas id="view"></canvas>
+      <div id="brackets"><i></i><i></i><i></i><i></i></div>
       <div id="grid" class="hidden"><i></i><i></i><i></i><i></i></div>
       <div id="level" class="hidden"><span></span><span></span><span></span></div>
       <div id="badge" class="glass-chip hidden"></div>
       <canvas id="histogram" class="glass hidden" width="128" height="48"></canvas>
       <div id="countdown" class="hidden"></div>
-      <div id="letterbox-hint" class="hidden"></div>
     </div>
 
     <header id="topbar">
-      <button id="btn-flash" class="glass circle" aria-label="Flash"><svg><use href="#i-bolt-off"/></svg></button>
+      <button id="btn-flash" class="icon-btn" aria-label="Flash"><svg><use href="#i-bolt-off"/></svg></button>
       <div class="spacer"></div>
+      <button id="btn-drawer" class="icon-btn" aria-label="More controls">
+        <svg viewBox="0 0 24 12" class="chev"><path d="M4 9l8-5 8 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       <div id="rec-time" class="hidden">00:00:00</div>
       <div class="spacer"></div>
-      <button id="btn-settings" class="glass circle" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
+      <button id="btn-looks" class="icon-btn" aria-label="Looks"><svg><use href="#i-film"/></svg></button>
     </header>
 
+    <div id="drawer" class="glass"></div>
+
     <section id="bottom">
-      <div id="panel-looks" class="glass panel hidden">
-        <div id="looks-strip"></div>
-        <div class="row">
-          <span class="small-label">STRENGTH</span>
-          <input id="intensity" type="range" min="0" max="1" step="0.01" value="1">
-          <span id="intensity-value" class="mono">100</span>
-          <button id="btn-card" class="glass circle small" aria-label="Recipe card"><svg><use href="#i-card"/></svg></button>
+      <div id="panels">
+        <div id="panel-looks" class="glass panel hidden">
+          <div id="looks-strip"></div>
+          <div class="row">
+            <span class="small-label">STRENGTH</span>
+            <input id="intensity" type="range" min="0" max="1" step="0.01" value="1">
+            <span id="intensity-value" class="mono">100</span>
+            <button id="btn-card" class="glass circle small" aria-label="Recipe card"><svg><use href="#i-card"/></svg></button>
+          </div>
+        </div>
+        <div id="panel-pro" class="glass panel hidden">
+          <div id="pro-params"></div>
+          <div class="row">
+            <button id="pro-reset" class="chip-btn">RESET</button>
+            <input id="pro-slider" type="range">
+          </div>
+        </div>
+        <div id="panel-depth" class="glass panel hidden">
+          <div class="row">
+            <span class="f-mark">ƒ</span>
+            <input id="aperture" type="range" min="1.4" max="16" step="0.1" value="2.8">
+            <span id="aperture-value" class="mono">2.8</span>
+          </div>
         </div>
       </div>
 
-      <div id="panel-pro" class="glass panel hidden">
-        <div id="pro-params"></div>
-        <div class="row">
-          <button id="pro-reset" class="chip-btn">RESET</button>
-          <input id="pro-slider" type="range">
-        </div>
-      </div>
+      <div id="zoom" class="pill"></div>
 
-      <div id="panel-depth" class="glass panel hidden">
-        <div class="row">
-          <span class="f-mark">ƒ</span>
-          <input id="aperture" type="range" min="1.4" max="16" step="0.1" value="2.8">
-          <span id="aperture-value" class="mono">2.8</span>
-        </div>
-      </div>
-
-      <div id="zoom" class="glass pill"></div>
+      <div id="modes"><div id="mode-track">
+        <button data-mode="video">VIDEO</button>
+        <button data-mode="photo" class="active">PHOTO</button>
+        <button data-mode="depth">PORTRAIT</button>
+      </div></div>
 
       <div id="shutter-row">
         <button id="thumb" aria-label="Gallery"><img id="thumb-img" alt=""><span id="thumb-spinner" class="hidden"></span></button>
         <button id="shutter" aria-label="Shutter"><span></span></button>
         <button id="btn-flip" class="glass circle big" aria-label="Switch camera"><svg><use href="#i-flip"/></svg></button>
       </div>
-
-      <nav id="tray" class="glass tray">
-        <div id="tray-items"></div>
-        <div id="tray-modes">
-          <button data-main="photo" class="active">PHOTO</button>
-          <button id="tray-toggle" aria-label="Collapse"><svg viewBox="0 0 24 12"><path d="M3 3l9 6 9-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button data-main="video">VIDEO</button>
-        </div>
-      </nav>
     </section>
 
     <div id="blink"></div>

@@ -1,5 +1,5 @@
 // Offline support: app files are cached; the depth model is cached the first time it's used.
-const VERSION = 'procam-v2';
+const VERSION = 'procam-v3';
 const APP = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/app.js', 'js/looks.js', 'js/renderer.js', 'js/camera.js', 'js/motion.js', 'js/segmentation.js', 'js/gallery.js',
