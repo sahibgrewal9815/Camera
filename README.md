@@ -1,40 +1,61 @@
 # ProCam 📸
 
-A modern iPhone camera app built with SwiftUI and AVFoundation, using the newest camera APIs.
+A film-style iPhone camera with a frosted-glass UI, built with SwiftUI, AVFoundation, Core Image, Metal and Vision.
+Looks are rendered **live in the viewfinder** and baked into your photos and videos.
 
 ## Features
 
-**Photo**
-- Zero Shutter Lag, Responsive Capture and Fast Capture Prioritization (fire shots back-to-back like the system camera)
-- Deferred photo processing: you get the shot instantly, and Photos finishes the heavy processing in the background
-- HEIF output, up to ~24MP by default (on 48MP sensors)
-- Apple ProRAW toggle (on supported Pro models), saved together with an HEIF preview
-- Live Photos
-- Flash: off / auto / on
-- 3s and 10s self-timer
+### Film looks (live LUTs)
+17 built-in recipes, each one a full "film recipe" (film simulation, white balance + red/blue shift, grain, colour chrome, dynamic range, highlight, shadow, colour, sharpness, denoise, clarity, plus halation and vignette):
 
-**Video**
-- HEVC recording with sound
-- Enhanced cinematic stabilization
-- Recording timer
+| Family | Looks |
+|---|---|
+| Your recipe cards | Portra 800, Leica X, Alpine Gold, The Times |
+| Fujifilm-style | Classic Chrome, Classic Neg, Velvia, Eterna, Acros |
+| Kodak-style | Portra 400, Gold 200, Ektar 100, Kodachrome, Tri-X 400 |
+| Vintage / cine | Cine 800T (with halation), Instant, Vintage 70s |
 
-**Controls**
-- Automatic lens switching across ultra wide, wide and telephoto
-- Zoom buttons (0.5×, 1×, 2×, 3×/5× depending on your iPhone) and pinch to zoom
-- Tap to focus and expose; goes back to auto focus when the scene changes
-- **Camera Control button** (iPhone 16 and later): zoom and exposure sliders
-- Take a shot with the **volume buttons**, a **Camera Control** press or an **AirPods** stem press
-- Rule-of-thirds grid
-- Swipe left/right to switch between Photo and Video
-- Front/back camera switch
-- Liquid Glass buttons on iOS 26 and later, frosted glass on iOS 18
-- Haptic feedback
+- Live thumbnails of every look in a swipeable strip, plus a strength slider
+- **Recipe card**: a frosted card laid out like a FUJISTYLE recipe. Tap any tile to change it, then save your own recipes
+- Film colour comes from procedural 3D LUTs (33³), with animated film grain on video
+- Works with the **Camera Control** button: swipe through Looks and Strength (iPhone 16 and later)
+
+### Photo
+- Zero Shutter Lag, Responsive Capture, Fast Capture Prioritization
+- **Depth**: background blur with an adjustable ƒ1.4–ƒ16 aperture. It uses Vision subject masks, so it works for people, pets and objects
+- Apple ProRAW (on Pro models; the RAW is saved next to the styled HEIF), Live Photos (with the Natural look), flash
+- 4:3, 1:1 and 16:9 aspect ratios, 3s/10s timer, grid, horizon level
+
+### Video
+- **Cinematic**: 24fps, background blur that follows people, extended stabilization
+- **Action**: strongest stabilization (Enhanced), 1080p
+- **Slo-mo**: up to 240fps, written as true slow-motion playback
+- **Time-lapse**: adjustable interval, stabilized
+- Standard video in 4K or HD at 24/25/30/60fps, HEVC, with a stabilization picker: Off, Standard, Cinematic, Extended or Action
+
+### Pro controls
+- Manual ISO, shutter speed, white balance (Kelvin), focus and exposure compensation, each with an AUTO toggle
+- Live histogram and aperture readout
+- **Smart focus tracking**: double-tap a subject and focus follows it as it moves
+
+### Other
+- Automatic lens switching (0.5×, 1×, 2×, 4×/5×), pinch to zoom, tap to focus
+- Volume buttons, Camera Control press and AirPods stem press work as the shutter
+- Liquid Glass on iOS 26 and later, frosted material on iOS 18
+
+## What the iPhone doesn't let third-party apps do
+
+Some features in Apple's Camera app can't be built by another app, so ProCam either imitates them or leaves them out:
+- **Night mode, Photonic Engine and Smart HDR tuning**: not available to other apps. ProCam does get Deep Fusion-style processing through the quality setting.
+- **Variable aperture (iPhone 18 Pro)**: no control is available yet. ProCam shows the real ƒ-number and simulates aperture with blur in Depth and Cinematic.
+- **Spatial video, Apple Log and ProRes**: these need a different recording pipeline that can't apply live looks. They're good candidates for a future "Pro Video" mode.
+- **Siri mode and Photographic Styles**: these are Apple-only. Film recipes take the place of Styles.
 
 ## Requirements
 
 - Xcode 26 or later
 - iOS 18.0 or later on a **real iPhone** (the Simulator has no camera)
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 
 ## Getting started
 
@@ -46,28 +67,38 @@ xcodegen generate
 open ProCam.xcodeproj
 ```
 
-Then in Xcode:
 1. Select the **ProCam** target → **Signing & Capabilities** → choose your Team.
-2. If needed, change the bundle ID (`com.example.procam`) to something unique, like `com.yourname.procam`.
-3. Plug in your iPhone, select it as the run destination and press **Run** (⌘R).
-4. On the iPhone, the first time: **Settings → General → VPN & Device Management** → trust your developer certificate, and turn on **Developer Mode** if asked.
+2. Change the bundle ID (`com.example.procam`) to something unique.
+3. Plug in your iPhone, select it, and press **Run** (⌘R).
+4. On the phone: trust your developer certificate in **Settings → General → VPN & Device Management**, and turn on **Developer Mode** if asked.
 
 ## Project structure
 
-| File | What it does |
-|---|---|
-| `ProCam/ProCamApp.swift` | App entry point |
-| `ProCam/CameraView.swift` | The camera screen (SwiftUI) |
-| `ProCam/CameraModel.swift` | Capture session, lenses, zoom, focus, photo/video, Camera Control |
-| `ProCam/PhotoCaptureProcessor.swift` | Handles each photo and saves it to Photos |
-| `ProCam/CameraPreview.swift` | Live camera preview layer |
-| `project.yml` | XcodeGen project definition (permissions, iOS version, bundle ID) |
+```
+ProCam/
+├── ProCamApp.swift
+├── Camera/
+│   ├── CameraEngine.swift      Session, modes, lenses, pro controls, tracking, frame pipeline
+│   ├── CameraTypes.swift       Modes, settings, pro state, shared render context
+│   ├── PhotoProcessor.swift    Bakes look/depth/crop into photos and saves them
+│   ├── VideoRecorder.swift     AVAssetWriter recording, slo-mo and time-lapse retiming
+│   └── DepthEffect.swift       Vision subject masks + background blur
+├── Looks/
+│   ├── FilmRecipe.swift        Recipe model + built-in recipes
+│   └── FilmRenderer.swift      LUT generation, tone, grain, halation, clarity
+└── UI/
+    ├── CameraView.swift        Main screen
+    ├── ModeTray.swift          Frosted mode tray (PHOTO ⌄ VIDEO)
+    ├── LooksStrip.swift        Look picker with live thumbnails
+    ├── RecipeCardView.swift    Editable recipe card
+    ├── ProPanel.swift          Manual controls
+    ├── SettingsSheet.swift
+    ├── MetalPreview.swift      Metal viewfinder
+    ├── Components.swift        Shutter, zoom, histogram, level, overlays
+    └── Glass.swift             Liquid Glass / frosted helpers
+```
 
-## Ideas for next features
+## Notes
 
-- Night mode and manual controls (ISO, shutter speed, white balance)
-- Portrait mode with depth effect
-- Cinematic video / Spatial video
-- 4K 60fps and ProRes / Apple Log options
-- Photographic Styles and filters
-- QR code scanning
+- Film stock names (Portra, Velvia, Kodachrome and others) are trademarks of their owners. ProCam's looks are inspired by those films, not official versions. **Rename them before you publish to the App Store.**
+- Heavy looks combined with 4K60 or 240fps slo-mo can drop frames on older iPhones. If that happens, use HD or a lighter look.
