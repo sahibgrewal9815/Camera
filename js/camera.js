@@ -38,8 +38,9 @@ export class CameraStream {
    */
   async start(opts) {
     this.stop();
+    // "fast" keeps the live view smooth; "high" gives 12MP photos but a slower viewfinder.
     const size = opts.quality === 'photo'
-      ? { width: { ideal: 4032 }, height: { ideal: 3024 } }
+      ? (opts.photoRes === 'high' ? { width: { ideal: 4032 }, height: { ideal: 3024 } } : { width: { ideal: 1920 }, height: { ideal: 1440 } })
       : { width: { ideal: opts.videoHeight === 720 ? 1280 : 1920 }, height: { ideal: opts.videoHeight || 1080 }, frameRate: { ideal: opts.fps || 30 } };
     const video = opts.deviceId ? { deviceId: { exact: opts.deviceId }, ...size } : { facingMode: opts.facing || 'environment', ...size };
 

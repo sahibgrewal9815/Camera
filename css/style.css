@@ -42,13 +42,13 @@ svg { width: 22px; height: 22px; display: block; }
 
 /* ---------- Layout ---------- */
 #app { position: fixed; inset: 0; }
-#video { position: absolute; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 
 #viewfinder {
   position: absolute; left: 0; width: 100%; overflow: hidden; background: #000;
   transition: top .35s ease, height .35s ease;
 }
-#view { width: 100%; height: 100%; display: block; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 #topbar {
   position: absolute; top: calc(var(--safe-top) + 8px); left: 16px; right: 16px;
@@ -60,8 +60,8 @@ svg { width: 22px; height: 22px; display: block; }
 }
 
 #bottom {
-  position: absolute; left: 14px; right: 14px; bottom: calc(var(--safe-bottom) + 10px);
-  display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 5;
+  position: absolute; left: 12px; right: 12px; bottom: max(6px, calc(var(--safe-bottom) - 18px));
+  display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 5;
 }
 .panel { width: 100%; border-radius: 26px; padding: 12px 14px; animation: rise .3s ease; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
@@ -128,18 +128,18 @@ input[type=range]::-webkit-slider-thumb {
 #shutter.counting span { background: rgba(255,255,255,.5); }
 
 /* Tray */
-.tray { width: 100%; border-radius: 30px; padding: 16px 8px 12px; }
-#tray-items { display: flex; margin-bottom: 14px; transition: all .3s; }
+.tray { width: 100%; border-radius: 28px; padding: 12px 8px 10px; }
+#tray-items { display: flex; margin-bottom: 10px; transition: all .3s; }
 #tray.collapsed #tray-items { display: none; }
-.tray-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; transition: transform .15s; }
+.tray-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; transition: transform .15s; }
 .tray-item i {
-  width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center;
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
   background: rgba(0,0,0,0.28); border: 0.5px solid rgba(255,255,255,0.1);
 }
 .tray-item span { font-size: 10px; font-weight: 700; letter-spacing: .02em; }
 .tray-item.active { color: var(--yellow); }
 .tray-item.active i { border-color: rgba(255,214,10,.6); }
-#tray-modes { display: flex; justify-content: center; align-items: center; gap: 22px; font-size: 16px; font-weight: 500; }
+#tray-modes { display: flex; justify-content: center; align-items: center; gap: 22px; font-size: 15px; font-weight: 500; }
 #tray-modes .active { color: var(--yellow); }
 #tray-toggle svg { width: 30px; height: 14px; transition: transform .3s; }
 #tray.collapsed #tray-toggle svg { transform: rotate(180deg); }

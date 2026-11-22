@@ -12,7 +12,8 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 // ---------- State ----------
 const DEFAULTS = {
   recipeId: 'natural', intensity: 1, aspect: '4:3', grid: false, level: false, mirror: true, autosave: false,
-  quality: 0.92, fps: 30, res: 1080, stab: 'off', mic: true, histogram: true, aperture: 2.8, customs: [],
+  quality: 0.92, fps: 30, res: 1080, stab: 'off', mic: true, histogram: false, aperture: 2.8, customs: [],
+  photoRes: 'fast',
 };
 let S;
 try { S = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('procam') || '{}') }; } catch { S = { ...DEFAULTS }; }
@@ -29,8 +30,8 @@ const R = {
 const allRecipes = () => [...PRESETS, ...S.customs];
 let recipe = allRecipes().find((r) => r.id === S.recipeId) || PRESETS[0];
 
-const isVideoMode = () => R.mode === 'video' || R.mode === 'cinematic';
-const depthActive = () => R.mode === 'depth' || R.mode === 'cinematic';
+const isVideoMode = () => R.mode === 'video';
+const depthActive = () => R.mode === 'depth';
 const depthAmount = () => clamp((16 - S.aperture) / (16 - 1.4), 0, 1);
 
 // ---------- Setup ----------
@@ -124,11 +125,26 @@ function renderParams(time) {
 }
 
 // ---------- Render loop ----------
+const hasFrameCallback = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+R.lastFrameAt = performance.now();
+function watchFrames() {
+  video.requestVideoFrameCallback(() => {
+    R.newFrame = true;
+    R.lastFrameAt = performance.now();
+    watchFrames();
+  });
+}
+if (hasFrameCallback) watchFrames();
+
 function loop(t) {
   requestAnimationFrame(loop);
   if (!R.started || R.capturing || !renderer) return;
+  // Only draw when the camera has a new frame (30fps), not on every 60/120Hz screen refresh.
+  if (hasFrameCallback && !R.newFrame && !lutDirty) return;
+  R.newFrame = false;
   if (lutDirty) { renderer.setLut(lutFor(recipe, R.pro)); lutDirty = false; }
   if (!renderer.uploadFrame(video)) return;
+  if (!hasFrameCallback) R.lastFrameAt = performance.now();
   R.frame++;
 
   if (depthActive() && R.depthReady) {
@@ -144,8 +160,8 @@ function loop(t) {
   const [w, h] = previewSize();
   renderer.render(w, h, renderParams(t / 1000));
 
-  if (R.showPro && S.histogram && R.frame % 10 === 0) drawHistogram(renderer.histogram());
-  if (R.showLooks && t - R.lastThumbs > 900) { R.lastThumbs = t; renderLookThumbs(); }
+  if (R.showPro && S.histogram && R.frame % 15 === 0) drawHistogram(renderer.histogram());
+  if (R.showLooks && t - R.lastThumbs > 1200) { R.lastThumbs = t; renderLookThumbs(); }
   if (S.level && motion.granted) updateLevel();
 }
 
@@ -180,7 +196,7 @@ async function startCamera() {
   }
   await camera.start({
     deviceId, facing: R.facing, quality: isVideoMode() ? 'video' : 'photo',
-    videoHeight: S.res, fps: R.mode === 'cinematic' ? 24 : S.fps,
+    videoHeight: S.res, fps: S.fps, photoRes: S.photoRes,
   });
   if (R.facing === 'environment' && !camera.devices.some((d) => d.label)) await camera.refreshDevices();
   buildZoom();
@@ -191,9 +207,11 @@ async function boot() {
   try {
     await startCamera();
     R.started = true;
+    R.lastFrameAt = performance.now();
     $('#start').classList.add('hidden');
     layout();
   } catch (e) {
+    $('#start').classList.remove('hidden');
     console.error(e);
     const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
     showStartError(denied
@@ -201,6 +219,30 @@ async function boot() {
       : `Could not start the camera (${e?.name || e}).`);
   }
 }
+
+let staleTicks = 0;
+async function healCamera() {
+  if (!R.started || document.hidden || R.healing || R.capturing) return;
+  const track = camera.track;
+  const stale = performance.now() - R.lastFrameAt > 2000 || video.readyState < 2;
+  if (track && track.readyState === 'live' && !stale) { staleTicks = 0; return; }
+  R.healing = true;
+  try {
+    staleTicks++;
+    if (track && track.readyState === 'live' && staleTicks < 2) {
+      await video.play();               // usually enough after iOS pauses the video
+    } else {
+      staleTicks = 0;
+      await startCamera();              // stream ended: reopen the camera
+    }
+  } catch (e) {
+    console.warn('camera heal failed', e);
+  } finally {
+    R.lastFrameAt = performance.now();
+    R.healing = false;
+  }
+}
+setInterval(healCamera, 1000);
 
 function showStartError(msg) {
   const el = $('#start-error');
@@ -286,7 +328,7 @@ $('#viewfinder').addEventListener('pointerup', (e) => {
 // ---------- Modes ----------
 async function setMode(mode) {
   if (R.recording || mode === R.mode) return;
-  const wasVideo = isVideoMode(), wasCine = R.mode === 'cinematic';
+  const wasVideo = isVideoMode();
   R.mode = mode;
   cancelCountdown();
   if (depthActive()) {
@@ -299,7 +341,7 @@ async function setMode(mode) {
   }
   layout();
   renderUI();
-  if (wasVideo !== isVideoMode() || wasCine !== (R.mode === 'cinematic')) {
+  if (wasVideo !== isVideoMode()) {
     await startCamera().catch((e) => toast(`Camera error (${e.name})`));
   }
 }
@@ -310,7 +352,7 @@ function updateBadge(text) {
   const f = `ƒ${S.aperture.toFixed(1)}`;
   const label = text || (!R.depthReady ? 'Loading depth…'
     : R.maskVersion < 0 ? 'Looking for people…'
-      : R.mode === 'cinematic' ? `CINEMATIC · ${f} · 24fps` : `DEPTH · ${f}`);
+      : `DEPTH · ${f}`);
   badge.textContent = label;
   badge.classList.remove('hidden');
 }
@@ -323,10 +365,6 @@ function renderUI() {
   // Top bar
   $('#btn-flash').innerHTML = ICON(R.flash ? 'i-bolt' : 'i-bolt-off');
   $('#btn-flash').classList.toggle('active-y', R.flash);
-  $('#btn-aspect').textContent = S.aspect;
-  $('#btn-aspect').classList.toggle('hidden', video || R.recording);
-  $('#btn-stab').classList.toggle('hidden', !video || R.recording);
-  $('#btn-stab').classList.toggle('active-y', S.stab !== 'off');
   $('#btn-settings').classList.toggle('hidden', R.recording);
   $('#rec-time').classList.toggle('hidden', !R.recording);
 
@@ -362,9 +400,9 @@ function renderUI() {
   }
   const items = video
     ? [
-      { label: 'CINEMATIC', icon: 'i-cine', active: R.mode === 'cinematic', act: () => setMode(R.mode === 'cinematic' ? 'video' : 'cinematic') },
       { label: 'LOOKS', icon: 'i-film', active: R.showLooks || !isNeutral(recipe), act: toggleLooks },
       { label: 'PRO', icon: 'i-sliders', active: R.showPro, act: togglePro },
+      { label: { off: 'STABLE', standard: 'STABLE', strong: 'STABLE+' }[S.stab], icon: 'i-stab', active: S.stab !== 'off', act: cycleStabilization },
       { label: S.mic ? 'SOUND' : 'MUTED', icon: 'i-mic', active: S.mic, act: () => { S.mic = !S.mic; persist(); renderUI(); } },
     ]
     : [
@@ -553,7 +591,7 @@ async function takePhoto() {
 
 async function startRecording() {
   if (!renderer || R.recording) return;
-  const fps = R.mode === 'cinematic' ? 24 : S.fps;
+  const fps = S.fps;
   const stream = canvas.captureStream(fps);
   if (S.mic) {
     try { stream.addTrack(await camera.audioTrack()); } catch { toast('No microphone access, recording without sound'); }
@@ -879,6 +917,8 @@ document.querySelectorAll('.sheet').forEach((s) => s.addEventListener('click', (
 
 // ---------- Settings ----------
 function renderSettings() {
+  $('#set-aspect').value = S.aspect;
+  $('#set-photores').value = S.photoRes;
   $('#set-grid').checked = S.grid;
   $('#set-level').checked = S.level;
   $('#set-mirror').checked = S.mirror;
@@ -910,6 +950,8 @@ const bind = (id, key, parse, after) => {
     renderUI();
   });
 };
+bind('#set-aspect', 'aspect', (t) => t.value, () => layout());
+bind('#set-photores', 'photoRes', (t) => t.value, () => { if (!isVideoMode()) startCamera(); });
 bind('#set-grid', 'grid', (t) => t.checked);
 bind('#set-level', 'level', (t) => t.checked, () => { if (S.level && !motion.granted) motion.request().then(renderUI); });
 bind('#set-mirror', 'mirror', (t) => t.checked);
@@ -929,20 +971,14 @@ $('#btn-flash').onclick = () => {
   if (R.flash && !camera.isFront && !camera.torchSupported) toast('This browser cannot use the flash on the back camera');
   renderUI();
 };
-$('#btn-aspect').onclick = () => {
-  S.aspect = { '4:3': '1:1', '1:1': '16:9', '16:9': '4:3' }[S.aspect];
-  persist();
-  layout();
-  renderUI();
-};
-$('#btn-stab').onclick = async () => {
+async function cycleStabilization() {
   if (!motion.granted) await motion.request();
   if (!motion.granted) { toast('Stabilization needs motion access'); return; }
   S.stab = { off: 'standard', standard: 'strong', strong: 'off' }[S.stab];
   persist();
   toast(`Stabilization: ${S.stab === 'off' ? 'Off' : S.stab === 'standard' ? 'Standard' : 'Strong'}`);
   renderUI();
-};
+}
 $('#btn-flip').onclick = async () => {
   if (R.recording) return;
   R.facing = R.facing === 'environment' ? 'user' : 'environment';
@@ -983,11 +1019,13 @@ if (isIOS && !navigator.standalone) $('#install-hint').classList.remove('hidden'
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (R.recording) stopRecording();
-    camera.stop();
   } else if (R.started) {
-    startCamera().catch(() => {});
+    R.lastFrameAt = performance.now();
+    if (camera.track?.readyState === 'live') video.play().catch(() => {});
+    else startCamera().catch(() => {});
   }
 });
+addEventListener('pageshow', () => { if (R.started) healCamera(); });
 addEventListener('resize', () => { layout(); });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -997,5 +1035,5 @@ renderUI();
 refreshThumb();
 requestAnimationFrame(loop);
 
-// Start right away if camera permission was already given.
-navigator.permissions?.query({ name: 'camera' }).then((p) => { if (p.state === 'granted') boot(); }).catch(() => {});
+// Open the camera straight away. The start card only appears if the camera can't open.
+boot();

@@ -7,7 +7,7 @@
 3. Tap **Share** → **Add to Home Screen**. ProCam now opens full screen like a normal app.
 4. Your shots are kept in the ProCam gallery (bottom-left thumbnail). Open one, tap **Save**, then **Save Image** / **Save Video** to put it in Photos.
 
-**Web app features:** 17 film looks (Portra 800, Leica X, Alpine Gold, The Times, Classic Chrome, Velvia, Kodachrome, Cine 800T…) live in the viewfinder, an editable FUJISTYLE-style recipe card, Depth photos and Cinematic video with real background blur (on-device person segmentation), lens buttons (.5 / 1 / 2 / Tele), pinch zoom, Pro panel (EV, white balance, tint, contrast, saturation + histogram), gyroscope stabilization, timer, grid, level, flash, and a frosted glass UI.
+**Web app features:** 17 film looks (Portra 800, Leica X, Alpine Gold, The Times, Classic Chrome, Velvia, Kodachrome, Cine 800T…) live in the viewfinder, an editable FUJISTYLE-style recipe card, Depth photos with real background blur (on-device person segmentation), lens buttons (.5 / 1 / 2 / Tele), pinch zoom, Pro panel (EV, white balance, tint, contrast, saturation + histogram), gyroscope stabilization, timer, grid, level, flash, and a frosted glass UI.
 
 The web app lives in `index.html`, `css/`, `js/` and `vendor/` (MediaPipe Selfie Segmentation, Apache-2.0).
 

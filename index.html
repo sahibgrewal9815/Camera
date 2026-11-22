@@ -37,9 +37,9 @@
   </svg>
 
   <main id="app">
-    <video id="video" playsinline muted autoplay></video>
-
     <div id="viewfinder">
+      <!-- The real video sits under the canvas: iOS keeps feeding frames to a visible video. -->
+      <video id="video" playsinline muted autoplay></video>
       <canvas id="view"></canvas>
       <div id="grid" class="hidden"><i></i><i></i><i></i><i></i></div>
       <div id="level" class="hidden"><span></span><span></span><span></span></div>
@@ -51,11 +51,9 @@
 
     <header id="topbar">
       <button id="btn-flash" class="glass circle" aria-label="Flash"><svg><use href="#i-bolt-off"/></svg></button>
-      <button id="btn-aspect" class="glass chip" aria-label="Aspect ratio">4:3</button>
       <div class="spacer"></div>
       <div id="rec-time" class="hidden">00:00:00</div>
       <div class="spacer"></div>
-      <button id="btn-stab" class="glass circle hidden" aria-label="Stabilization"><svg><use href="#i-stab"/></svg></button>
       <button id="btn-settings" class="glass circle" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
     </header>
 
@@ -108,11 +106,11 @@
     <div id="front-flash"></div>
 
     <!-- Start screen -->
-    <div id="start" class="screen">
+    <div id="start" class="screen hidden">
       <div class="start-card glass">
         <div class="logo">PRO<br>CAM<i></i></div>
-        <p>Film looks · Depth · Cinematic</p>
-        <button id="btn-start" class="primary">Tap to start camera</button>
+        <p>Film looks · Depth · Pro</p>
+        <button id="btn-start" class="primary">Open camera</button>
         <p id="start-error" class="error hidden"></p>
         <p id="install-hint" class="hint hidden">Add to your home screen: tap <b>Share</b> → <b>Add to Home Screen</b>.</p>
       </div>
@@ -124,6 +122,12 @@
         <div class="sheet-head"><h2>Settings</h2><button class="close glass circle small" data-close><svg><use href="#i-close"/></svg></button></div>
         <div class="group">
           <h3>Photo</h3>
+          <label class="setting">Aspect ratio
+            <select id="set-aspect"><option value="4:3">4:3</option><option value="1:1">1:1 Square</option><option value="16:9">16:9</option></select>
+          </label>
+          <label class="setting">Photo resolution
+            <select id="set-photores"><option value="fast">Fast (smooth viewfinder)</option><option value="high">12MP (slower)</option></select>
+          </label>
           <label class="setting">Grid <input type="checkbox" id="set-grid"></label>
           <label class="setting">Level <input type="checkbox" id="set-level"></label>
           <label class="setting">Mirror front camera <input type="checkbox" id="set-mirror"></label>
@@ -157,6 +161,7 @@
         <div class="group">
           <h3>Install</h3>
           <p class="note">On iPhone, open this page in Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. ProCam then opens full screen like an app.</p>
+          <p class="note"><b>Stop the camera permission pop-up:</b> iPhone Settings → Apps → Safari → Camera → <b>Allow</b> (and Microphone → Allow for video sound).</p>
           <p class="note">Photos and videos are kept in ProCam's gallery. Tap a photo or video, then <b>Save</b>, then <b>Save Image</b> or <b>Save Video</b> to put it in your Photos app.</p>
         </div>
       </div>
